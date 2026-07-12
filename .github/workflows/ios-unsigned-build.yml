@@ -28,13 +28,15 @@ jobs:
 
       - run: flutter build ios --release --no-codesign
 
-      - name: Zip unsigned Runner.app
+      - name: Package unsigned .ipa
         run: |
           cd build/ios/iphoneos
-          zip -r Runner-unsigned.app.zip Runner.app
+          mkdir Payload
+          mv Runner.app Payload/
+          zip -r ChristmasLight-unsigned.ipa Payload
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Runner-unsigned.app
-          path: app/build/ios/iphoneos/Runner-unsigned.app.zip
+          name: ChristmasLight-unsigned.ipa
+          path: app/build/ios/iphoneos/ChristmasLight-unsigned.ipa
           retention-days: 14

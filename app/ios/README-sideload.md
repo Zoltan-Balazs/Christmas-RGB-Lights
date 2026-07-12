@@ -6,25 +6,48 @@ and Xcode only runs on macOS -- there's no NixOS-native way around that one
 step. Everything else -- signing the build and installing it on your phone
 -- runs fine on NixOS. The split:
 
-1. **Build the unsigned app** (needs a real macOS host, once per release)
-2. **Sign it with your own certificate** (NixOS, via `zsign`)
-3. **Install it on your device** (NixOS, via `ideviceinstaller`, over USB)
+1. **Build the unsigned .ipa** (needs a real macOS host, once per release)
+2. **Sign and install it**, either:
+   - **Route A** -- your own certificate, from NixOS, via `zsign` +
+     `ideviceinstaller` (1-year validity, needs a $99/yr Apple Developer
+     account)
+   - **Route B** -- [SideStore](https://sidestore.io) on your phone, using
+     a free Apple ID (no dev account needed, but re-signs every 7 days,
+     automatically, in the background)
 
 Run `devenv shell` at the repo root first -- it provides `flutter`, `zsign`,
 `ldid`, `libimobiledevice`, `ideviceinstaller`, and `usbmuxd`.
 
-## 1. Build the unsigned .app
+## 1. Build the unsigned .ipa
 
 Easiest path: push to `main` (or run manually) and let
 `.github/workflows/ios-unsigned-build.yml` build it on a free GitHub Actions
-macOS runner. It runs `flutter build ios --release --no-codesign` and
-uploads `Runner-unsigned.app.zip` as a workflow artifact. Download and
-unzip it.
+macOS runner. It runs `flutter build ios --release --no-codesign`, wraps
+`Runner.app` in the `Payload/` folder structure IPAs require, and uploads
+`ChristmasLight-unsigned.ipa` as a workflow artifact -- ready to sign, no
+repackaging needed.
 
 (If you have occasional access to any Mac, `cd app && flutter build ios
---release --no-codesign` does the same thing locally.)
+--release --no-codesign` does the build; see the workflow's "Package
+unsigned .ipa" step for the `Payload/` wrapping if you want to do it by
+hand.)
 
-## 2. Get a certificate + provisioning profile
+## Route B: SideStore (free Apple ID)
+
+Assuming SideStore is already installed and paired on your phone (that's a
+separate one-time setup, ask if you need it):
+
+- Get `ChristmasLight-unsigned.ipa` onto the device -- AirDrop, Files/iCloud
+  Drive, or SideStore's "Import from URL" (host it briefly with e.g.
+  `python3 -m http.server` on your LAN, or as a GitHub Release asset).
+- In SideStore: **My Apps -> + -> pick the .ipa** (or paste the URL).
+- SideStore signs it with your paired Apple ID and installs it, and
+  refreshes the 7-day free-provisioning signature automatically from then
+  on -- no need to repeat anything below.
+
+## Route A: your own certificate
+
+### 1. Get a certificate + provisioning profile
 
 You need an Apple Developer account (apple.com/developer, $99/yr) -- the
 free/personal-team route requires Xcode to mint and silently renew 7-day
@@ -54,7 +77,7 @@ openssl req -new -key ios_dev.key -out ios_dev.csr -subj "/CN=Your Name/emailAdd
 - Create a Development provisioning profile for that App ID + certificate
   + device, download it as `profile.mobileprovision`.
 
-## 3. Pair your device and sign the app
+### 2. Pair your device and sign the app
 
 ```shell
 devenv shell
@@ -65,10 +88,10 @@ zsign \
   -k ios_dev.p12 -p '<p12 password>' \
   -m profile.mobileprovision \
   -o ChristmasLight-signed.ipa \
-  Runner.app
+  ChristmasLight-unsigned.ipa
 ```
 
-## 4. Install
+### 3. Install
 
 ```shell
 ideviceinstaller -i ChristmasLight-signed.ipa
@@ -76,8 +99,8 @@ ideviceinstaller -i ChristmasLight-signed.ipa
 
 The app should now be on the home screen. Development certs/profiles are
 valid for a year (vs. 7 days for free-account signing), so you only need
-to repeat steps 2-4 when the app changes or the profile expires -- steps 3
-and 4 alone take a few seconds.
+to repeat steps 2-3 when the app changes or the profile expires -- signing
+and installing alone take a few seconds.
 
 ## Notes
 
