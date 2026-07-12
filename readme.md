@@ -20,3 +20,9 @@ $ yarn start
 ```shell
 $ yarn destuck
 ```
+
+## Mobile app
+
+`app/` has a Flutter companion app (Android + iOS) that talks to the same
+BLE strip. See `app/README.md`, and `app/ios/README-sideload.md` for
+building/sideloading on iOS from NixOS.
