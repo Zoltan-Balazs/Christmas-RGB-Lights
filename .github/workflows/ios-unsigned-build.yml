@@ -1,0 +1,40 @@
+name: Build unsigned iOS app
+
+# Xcode only runs on macOS, so this one step has to happen on a macOS
+# runner. Everything downstream of it (signing, installing on-device) is
+# done separately on NixOS -- see app/ios/README-sideload.md.
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths:
+      - "app/**"
+      - ".github/workflows/ios-unsigned-build.yml"
+
+jobs:
+  build:
+    runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - run: flutter pub get
+
+      - run: flutter build ios --release --no-codesign
+
+      - name: Zip unsigned Runner.app
+        run: |
+          cd build/ios/iphoneos
+          zip -r Runner-unsigned.app.zip Runner.app
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Runner-unsigned.app
+          path: app/build/ios/iphoneos/Runner-unsigned.app.zip
+          retention-days: 14
