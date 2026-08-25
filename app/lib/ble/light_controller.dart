@@ -124,7 +124,12 @@ class LightController {
     if (characteristic == null) {
       throw StateError('Not connected to a light strip');
     }
-    await characteristic.write(packet, withoutResponse: false);
+    // The strip's characteristic only advertises the write-without-response
+    // property (confirmed by the vendor app's BleService, which special-cases
+    // PROPERTY_WRITE_NO_RESPONSE ahead of plain WRITE); requesting a write
+    // with response throws PlatformException("WRITE property is not
+    // supported...").
+    await characteristic.write(packet, withoutResponse: true);
   }
 
   Future<void> sendSteadyColor({
