@@ -11,6 +11,12 @@ final Guid primaryCharacteristicUuid = Guid(
   '00001001-0000-1000-8000-00805f9b34fb',
 );
 
+/// Advertised local name of the light strip, per the vendor Android app
+/// (MainActivity's scan listener matches on this exact device name rather
+/// than a service UUID: the strip doesn't put its GATT service UUID in the
+/// advertisement packet, only exposes it once connected).
+const String lightDeviceName = 'Light';
+
 enum LightConnectionState { disconnected, scanning, connecting, connected }
 
 /// Talks to the Actuel RGB light strip over BLE.
@@ -18,7 +24,7 @@ enum LightConnectionState { disconnected, scanning, connecting, connected }
 /// Unlike the original Linux/BlueZ script, this cannot target a device by
 /// its fixed MAC address: iOS's CoreBluetooth never exposes hardware
 /// addresses to apps, only per-app-installation UUIDs. Instead we scan for
-/// any peripheral advertising the strip's primary service UUID.
+/// any peripheral advertising [lightDeviceName].
 class LightController {
   final _stateController = StreamController<LightConnectionState>.broadcast();
   Stream<LightConnectionState> get stateStream => _stateController.stream;
@@ -42,16 +48,15 @@ class LightController {
 
     _setState(LightConnectionState.scanning);
     try {
-      await FlutterBluePlus.startScan(
-        withServices: [primaryServiceUuid],
-        timeout: timeout,
-      );
+      await FlutterBluePlus.startScan(timeout: timeout);
 
       final result = await FlutterBluePlus.scanResults
           .expand((results) => results)
-          .firstWhere((r) => r.advertisementData.serviceUuids.contains(
-                primaryServiceUuid,
-              ))
+          .firstWhere(
+            (r) =>
+                r.advertisementData.advName == lightDeviceName ||
+                r.device.platformName == lightDeviceName,
+          )
           .timeout(timeout);
 
       await FlutterBluePlus.stopScan();
