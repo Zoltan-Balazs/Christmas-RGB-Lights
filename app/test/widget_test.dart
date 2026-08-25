@@ -6,7 +6,7 @@ void main() {
   testWidgets('App starts on the home screen', (WidgetTester tester) async {
     await tester.pumpWidget(const ChristmasLightApp());
 
-    expect(find.text('Christmas Lights'), findsOneWidget);
+    expect(find.text('Actuel RGB Light'), findsOneWidget);
     expect(find.text('Disconnected'), findsOneWidget);
     expect(find.text('Connect'), findsOneWidget);
   });

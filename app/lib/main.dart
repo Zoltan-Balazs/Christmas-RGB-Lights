@@ -12,7 +12,7 @@ class ChristmasLightApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'Christmas Lights',
+      title: 'Actuel RGB Light',
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.red),
         useMaterial3: true,

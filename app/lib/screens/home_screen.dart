@@ -142,7 +142,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Christmas Lights')),
+      appBar: AppBar(title: const Text('Actuel RGB Light')),
       body: StreamBuilder<LightConnectionState>(
         stream: _controller.stateStream,
         initialData: _controller.state,
