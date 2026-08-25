@@ -18,4 +18,61 @@ void main() {
     expect(formatColorChannel(0.0), 0);
     expect(formatColorChannel(0.5), 128);
   });
+
+  test('buildSyncTimePacket matches the vendor app wire format', () {
+    final packet = buildSyncTimePacket(DateTime(2026, 12, 24, 18, 30, 5));
+    expect(packet, [
+      0x3c,
+      PacketType.syncTime.index,
+      5, // second
+      30, // minute
+      18, // hour
+      24, // day
+      12, // month
+      2026 & 0xFF,
+      (2026 >> 8) & 0xFF,
+    ]);
+  });
+
+  test('buildUniColorPacket matches the vendor app wire format', () {
+    final packet = buildUniColorPacket(
+      effect: UniColorEffect.twinkleFlash,
+      colorIndex: 2,
+    );
+    expect(packet, [0x3c, PacketType.uniColor.index, 4, 2]);
+  });
+
+  test('buildMultiColorPacket matches the vendor app wire format', () {
+    final packet = buildMultiColorPacket(MultiColorEffect.asyncJump);
+    expect(packet, [0x3c, PacketType.multiColor.index, 5]);
+  });
+
+  test('buildSpeedPacket matches the vendor app wire format', () {
+    expect(buildSpeedPacket(3), [0x3c, PacketType.speed.index, 3]);
+  });
+
+  test('buildTimerPacket matches the vendor app wire format', () {
+    final packet = buildTimerPacket(
+      const TimerSlot(
+        enabled: true,
+        onHour: 17,
+        onMinute: 0,
+        offHour: 23,
+        offMinute: 30,
+      ),
+      const TimerSlot(
+        enabled: false,
+        onHour: 6,
+        onMinute: 15,
+        offHour: 8,
+        offMinute: 0,
+      ),
+    );
+    expect(packet, [
+      0x3c,
+      PacketType.timer.index,
+      1, 17, 0, 23, 30,
+      0, 6, 15, 8, 0,
+    ]);
+  });
 }

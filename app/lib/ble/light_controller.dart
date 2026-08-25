@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
@@ -93,28 +94,39 @@ class LightController {
     _setState(LightConnectionState.disconnected);
   }
 
+  Future<void> _write(Uint8List packet) async {
+    final characteristic = _characteristic;
+    if (characteristic == null) {
+      throw StateError('Not connected to a light strip');
+    }
+    await characteristic.write(packet, withoutResponse: false);
+  }
+
   Future<void> sendSteadyColor({
     required int red,
     required int green,
     required int blue,
-  }) async {
-    final characteristic = _characteristic;
-    if (characteristic == null) {
-      throw StateError('Not connected to a light strip');
-    }
-    await characteristic.write(
-      buildSteadyColorPacket(red: red, green: green, blue: blue),
-      withoutResponse: false,
-    );
-  }
+  }) => _write(buildSteadyColorPacket(red: red, green: green, blue: blue));
 
-  Future<void> sendPower(bool on) async {
-    final characteristic = _characteristic;
-    if (characteristic == null) {
-      throw StateError('Not connected to a light strip');
-    }
-    await characteristic.write(buildOnOffPacket(on), withoutResponse: false);
-  }
+  Future<void> sendPower(bool on) => _write(buildOnOffPacket(on));
+
+  /// Syncs the strip's onboard clock to [time] (defaults to now), needed
+  /// for the timer schedule to fire at the right times.
+  Future<void> sendSyncTime([DateTime? time]) =>
+      _write(buildSyncTimePacket(time ?? DateTime.now()));
+
+  Future<void> sendUniColorEffect({
+    required UniColorEffect effect,
+    required int colorIndex,
+  }) => _write(buildUniColorPacket(effect: effect, colorIndex: colorIndex));
+
+  Future<void> sendMultiColorEffect(MultiColorEffect effect) =>
+      _write(buildMultiColorPacket(effect));
+
+  Future<void> sendSpeed(int level) => _write(buildSpeedPacket(level));
+
+  Future<void> sendTimer(TimerSlot slot1, TimerSlot slot2) =>
+      _write(buildTimerPacket(slot1, slot2));
 
   void dispose() {
     _connectionSub?.cancel();

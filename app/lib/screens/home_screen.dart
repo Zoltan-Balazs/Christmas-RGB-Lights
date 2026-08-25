@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../ble/light_controller.dart';
+import '../ble/packet.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -17,6 +18,18 @@ class _HomeScreenState extends State<HomeScreen> {
   int _blue = 0;
   bool _power = true;
   String? _error;
+
+  UniColorEffect _uniEffect = UniColorEffect.inWaves;
+  int _uniColorIndex = 1;
+  MultiColorEffect _multiEffect = MultiColorEffect.fade;
+  int _speed = 3;
+
+  bool _slot1Enabled = false;
+  TimeOfDay _slot1On = const TimeOfDay(hour: 17, minute: 0);
+  TimeOfDay _slot1Off = const TimeOfDay(hour: 23, minute: 0);
+  bool _slot2Enabled = false;
+  TimeOfDay _slot2On = const TimeOfDay(hour: 6, minute: 0);
+  TimeOfDay _slot2Off = const TimeOfDay(hour: 8, minute: 0);
 
   @override
   void dispose() {
@@ -35,21 +48,76 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
-  Future<void> _sendColor() async {
+  Future<void> _sendColor() => _run(
+        () => _controller.sendSteadyColor(red: _red, green: _green, blue: _blue),
+        'Failed to send color',
+      );
+
+  Future<void> _togglePower(bool on) {
+    setState(() => _power = on);
+    return _run(() => _controller.sendPower(on), 'Failed to send power state');
+  }
+
+  Future<void> _run(Future<void> Function() action, String failureMessage) async {
     try {
-      await _controller.sendSteadyColor(red: _red, green: _green, blue: _blue);
+      await action();
     } catch (e) {
-      setState(() => _error = 'Failed to send color: $e');
+      setState(() => _error = '$failureMessage: $e');
     }
   }
 
-  Future<void> _togglePower(bool on) async {
-    setState(() => _power = on);
-    try {
-      await _controller.sendPower(on);
-    } catch (e) {
-      setState(() => _error = 'Failed to send power state: $e');
-    }
+  Future<void> _syncTime() =>
+      _run(_controller.sendSyncTime, 'Failed to sync time');
+
+  Future<void> _applyUniColor() => _run(
+        () => _controller.sendUniColorEffect(
+          effect: _uniEffect,
+          colorIndex: _uniColorIndex,
+        ),
+        'Failed to apply effect',
+      );
+
+  Future<void> _applyMultiColor() => _run(
+        () => _controller.sendMultiColorEffect(_multiEffect),
+        'Failed to apply effect',
+      );
+
+  Future<void> _applySpeed(int level) {
+    setState(() => _speed = level);
+    return _run(() => _controller.sendSpeed(level), 'Failed to set speed');
+  }
+
+  Future<void> _applyTimer() => _run(
+        () => _controller.sendTimer(
+          TimerSlot(
+            enabled: _slot1Enabled,
+            onHour: _slot1On.hour,
+            onMinute: _slot1On.minute,
+            offHour: _slot1Off.hour,
+            offMinute: _slot1Off.minute,
+          ),
+          TimerSlot(
+            enabled: _slot2Enabled,
+            onHour: _slot2On.hour,
+            onMinute: _slot2On.minute,
+            offHour: _slot2Off.hour,
+            offMinute: _slot2Off.minute,
+          ),
+        ),
+        'Failed to save timer',
+      );
+
+  Future<void> _pickTime(TimeOfDay initial, ValueChanged<TimeOfDay> onPicked) async {
+    final picked = await showTimePicker(context: context, initialTime: initial);
+    if (picked != null) onPicked(picked);
+  }
+
+  String _formatEnumLabel(String name) {
+    final withSpaces = name.replaceAllMapped(
+      RegExp(r'(?<=[a-z])(?=[A-Z])'),
+      (m) => ' ',
+    );
+    return withSpaces[0].toUpperCase() + withSpaces.substring(1);
   }
 
   Widget _channelSlider(String label, int value, ValueChanged<int> onChanged) {
@@ -82,7 +150,7 @@ class _HomeScreenState extends State<HomeScreen> {
           final state = snapshot.data ?? LightConnectionState.disconnected;
           final connected = state == LightConnectionState.connected;
 
-          return Padding(
+          return SingleChildScrollView(
             padding: const EdgeInsets.all(16),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -134,11 +202,144 @@ class _HomeScreenState extends State<HomeScreen> {
                   value: _power,
                   onChanged: connected ? _togglePower : null,
                 ),
+                const Divider(height: 32),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Effects', style: TextStyle(fontWeight: FontWeight.bold)),
+                    OutlinedButton(
+                      onPressed: connected ? _syncTime : null,
+                      child: const Text('Sync time'),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: DropdownButtonFormField<UniColorEffect>(
+                        initialValue: _uniEffect,
+                        decoration: const InputDecoration(labelText: 'Single-color effect'),
+                        items: [
+                          for (final e in UniColorEffect.values)
+                            DropdownMenuItem(value: e, child: Text(_formatEnumLabel(e.name))),
+                        ],
+                        onChanged: (e) => setState(() => _uniEffect = e!),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: DropdownButtonFormField<int>(
+                        initialValue: _uniColorIndex,
+                        decoration: const InputDecoration(labelText: 'Color'),
+                        items: [
+                          for (var i = 0; i < uniColorSwatchesRgb.length; i++)
+                            DropdownMenuItem(
+                              value: i,
+                              child: Container(
+                                width: 20,
+                                height: 20,
+                                color: Color(0xFF000000 | uniColorSwatchesRgb[i]),
+                              ),
+                            ),
+                        ],
+                        onChanged: (i) => setState(() => _uniColorIndex = i!),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: connected ? _applyUniColor : null,
+                  child: const Text('Apply single-color effect'),
+                ),
+                const SizedBox(height: 16),
+                DropdownButtonFormField<MultiColorEffect>(
+                  initialValue: _multiEffect,
+                  decoration: const InputDecoration(labelText: 'Multi-color effect'),
+                  items: [
+                    for (final e in MultiColorEffect.values)
+                      DropdownMenuItem(value: e, child: Text(_formatEnumLabel(e.name))),
+                  ],
+                  onChanged: (e) => setState(() => _multiEffect = e!),
+                ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: connected ? _applyMultiColor : null,
+                  child: const Text('Apply multi-color effect'),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    const SizedBox(width: 48, child: Text('Speed')),
+                    Expanded(
+                      child: Slider(
+                        value: _speed.toDouble(),
+                        min: 1,
+                        max: 5,
+                        divisions: 4,
+                        label: '$_speed',
+                        onChanged: connected ? (v) => _applySpeed(v.round()) : null,
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 32),
+                const Text('Timer', style: TextStyle(fontWeight: FontWeight.bold)),
+                _timerSlotRow(
+                  enabled: _slot1Enabled,
+                  onEnabledChanged: (v) => setState(() => _slot1Enabled = v),
+                  onTime: _slot1On,
+                  offTime: _slot1Off,
+                  onPickOn: () => _pickTime(_slot1On, (t) => setState(() => _slot1On = t)),
+                  onPickOff: () => _pickTime(_slot1Off, (t) => setState(() => _slot1Off = t)),
+                ),
+                _timerSlotRow(
+                  enabled: _slot2Enabled,
+                  onEnabledChanged: (v) => setState(() => _slot2Enabled = v),
+                  onTime: _slot2On,
+                  offTime: _slot2Off,
+                  onPickOn: () => _pickTime(_slot2On, (t) => setState(() => _slot2On = t)),
+                  onPickOff: () => _pickTime(_slot2Off, (t) => setState(() => _slot2Off = t)),
+                ),
+                const SizedBox(height: 8),
+                FilledButton(
+                  onPressed: connected ? _applyTimer : null,
+                  child: const Text('Save timer'),
+                ),
               ],
             ),
           );
         },
       ),
+    );
+  }
+
+  Widget _timerSlotRow({
+    required bool enabled,
+    required ValueChanged<bool> onEnabledChanged,
+    required TimeOfDay onTime,
+    required TimeOfDay offTime,
+    required VoidCallback onPickOn,
+    required VoidCallback onPickOff,
+  }) {
+    return Row(
+      children: [
+        Switch(value: enabled, onChanged: onEnabledChanged),
+        Expanded(
+          child: OutlinedButton(
+            onPressed: onPickOn,
+            child: Text('On ${onTime.format(context)}'),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: OutlinedButton(
+            onPressed: onPickOff,
+            child: Text('Off ${offTime.format(context)}'),
+          ),
+        ),
+      ],
     );
   }
 
