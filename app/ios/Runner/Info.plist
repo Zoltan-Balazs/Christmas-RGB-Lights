@@ -27,9 +27,11 @@
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
 	<key>NSBluetoothAlwaysUsageDescription</key>
-	<string>Christmas Light needs Bluetooth to connect to and control your RGB light strip.</string>
+	<string>Actuel RGB Light needs Bluetooth to connect to and control your RGB light strip.</string>
 	<key>NSBluetoothPeripheralUsageDescription</key>
-	<string>Christmas Light needs Bluetooth to connect to and control your RGB light strip.</string>
+	<string>Actuel RGB Light needs Bluetooth to connect to and control your RGB light strip.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Actuel RGB Light uses your location to compute today's sunrise and sunset for the timer.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>

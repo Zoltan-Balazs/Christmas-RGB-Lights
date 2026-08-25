@@ -3,6 +3,8 @@ import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../ble/light_controller.dart';
 import '../ble/packet.dart';
+import '../sun/solar.dart';
+import '../sun/sun_service.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
@@ -31,6 +33,10 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _slot2Enabled = false;
   TimeOfDay _slot2On = const TimeOfDay(hour: 6, minute: 0);
   TimeOfDay _slot2Off = const TimeOfDay(hour: 8, minute: 0);
+
+  final _sunService = SunTimesService();
+  SunTimes? _sunTimes;
+  bool _loadingSunTimes = false;
 
   @override
   void dispose() {
@@ -127,6 +133,45 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         'Failed to save timer',
       );
+
+  Future<void> _loadSunTimes() async {
+    setState(() {
+      _loadingSunTimes = true;
+      _error = null;
+    });
+    try {
+      final times = await _sunService.getTodaysSunTimes();
+      setState(() => _sunTimes = times);
+    } catch (e) {
+      setState(() => _error = 'Failed to get sunrise/sunset: $e');
+    } finally {
+      setState(() => _loadingSunTimes = false);
+    }
+  }
+
+  String _sunTimesLabel(BuildContext context) {
+    final sunrise = _sunTimes?.sunrise;
+    final sunset = _sunTimes?.sunset;
+    if (_sunTimes == null) {
+      return 'Schedule Slot 1 around today\'s sunset/sunrise';
+    }
+    if (sunrise == null || sunset == null) {
+      return 'The sun doesn\'t rise or set today at this location.';
+    }
+    return 'Today: sunrise ${TimeOfDay.fromDateTime(sunrise).format(context)}, '
+        'sunset ${TimeOfDay.fromDateTime(sunset).format(context)}';
+  }
+
+  void _applySunTimesToSlot1() {
+    final sunrise = _sunTimes?.sunrise;
+    final sunset = _sunTimes?.sunset;
+    if (sunrise == null || sunset == null) return;
+    setState(() {
+      _slot1Enabled = true;
+      _slot1On = TimeOfDay.fromDateTime(sunset);
+      _slot1Off = TimeOfDay.fromDateTime(sunrise);
+    });
+  }
 
   Future<void> _pickTime(TimeOfDay initial, ValueChanged<TimeOfDay> onPicked) async {
     final picked = await showTimePicker(context: context, initialTime: initial);
@@ -307,6 +352,39 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 const Divider(height: 32),
                 const Text('Timer', style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: Text(_sunTimesLabel(context))),
+                    const SizedBox(width: 8),
+                    OutlinedButton(
+                      onPressed: _loadingSunTimes ? null : _loadSunTimes,
+                      child: _loadingSunTimes
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Text('Use my location'),
+                    ),
+                  ],
+                ),
+                if (_sunTimes?.sunrise != null && _sunTimes?.sunset != null) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton(
+                    onPressed: _applySunTimesToSlot1,
+                    child: const Text('Apply to Slot 1 (On at sunset, off at sunrise)'),
+                  ),
+                ],
+                const Padding(
+                  padding: EdgeInsets.only(top: 4),
+                  child: Text(
+                    'The strip only stores a fixed clock time, so re-apply every '
+                    'so often as sunset/sunrise drift through the season.',
+                    style: TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ),
+                const SizedBox(height: 8),
                 _timerSlotRow(
                   enabled: _slot1Enabled,
                   onEnabledChanged: (v) => setState(() => _slot1Enabled = v),

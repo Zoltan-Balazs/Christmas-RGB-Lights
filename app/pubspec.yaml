@@ -38,6 +38,9 @@ dependencies:
   # Bluetooth LE support (works via CoreBluetooth on iOS, BlueZ-free on Android)
   flutter_blue_plus: ^1.35.5
 
+  # Device location, used to compute local sunrise/sunset for the timer.
+  geolocator: ^13.0.2
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
