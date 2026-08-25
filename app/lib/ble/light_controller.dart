@@ -40,6 +40,11 @@ class LightController {
     _stateController.add(state);
   }
 
+  /// Scans for a peripheral advertising [lightDeviceName] and connects to
+  /// it. If none shows up within [timeout], throws [LightNotFoundException]
+  /// carrying every device the scan actually saw -- useful as a fallback UI
+  /// (see HomeScreen) in case a particular unit advertises a different name
+  /// than expected.
   Future<void> connect({Duration timeout = const Duration(seconds: 10)}) async {
     if (_state == LightConnectionState.scanning ||
         _state == LightConnectionState.connecting) {
@@ -60,9 +65,25 @@ class LightController {
           .timeout(timeout);
 
       await FlutterBluePlus.stopScan();
+      await connectToDevice(result.device, timeout: timeout);
+    } catch (e) {
+      await FlutterBluePlus.stopScan();
+      _setState(LightConnectionState.disconnected);
+      if (e is TimeoutException) {
+        throw LightNotFoundException(FlutterBluePlus.lastScanResults);
+      }
+      rethrow;
+    }
+  }
 
-      _setState(LightConnectionState.connecting);
-      final device = result.device;
+  /// Connects directly to an already-discovered device, skipping the
+  /// name-matching scan. Used for the manual picker fallback.
+  Future<void> connectToDevice(
+    BluetoothDevice device, {
+    Duration timeout = const Duration(seconds: 10),
+  }) async {
+    _setState(LightConnectionState.connecting);
+    try {
       _device = device;
 
       _connectionSub?.cancel();
@@ -87,7 +108,6 @@ class LightController {
 
       _setState(LightConnectionState.connected);
     } catch (_) {
-      await FlutterBluePlus.stopScan();
       _setState(LightConnectionState.disconnected);
       rethrow;
     }
@@ -137,4 +157,15 @@ class LightController {
     _connectionSub?.cancel();
     _stateController.close();
   }
+}
+
+/// Thrown by [LightController.connect] when no device advertising
+/// [lightDeviceName] was found before the scan timed out.
+class LightNotFoundException implements Exception {
+  final List<ScanResult> nearbyDevices;
+  LightNotFoundException(this.nearbyDevices);
+
+  @override
+  String toString() =>
+      'No device advertising "$lightDeviceName" found nearby';
 }

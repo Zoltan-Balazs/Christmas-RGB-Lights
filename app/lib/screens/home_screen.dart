@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_blue_plus/flutter_blue_plus.dart';
 
 import '../ble/light_controller.dart';
 import '../ble/packet.dart';
@@ -43,6 +44,26 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _error = null);
     try {
       await _controller.connect();
+    } on LightNotFoundException catch (e) {
+      await _connectManually(e.nearbyDevices);
+    } catch (e) {
+      setState(() => _error = 'Could not connect: $e');
+    }
+  }
+
+  Future<void> _connectManually(List<ScanResult> nearbyDevices) async {
+    if (!mounted) return;
+    final device = await showModalBottomSheet<BluetoothDevice>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => _DevicePickerSheet(nearbyDevices: nearbyDevices),
+    );
+    if (device == null) {
+      setState(() => _error = 'Could not find "$lightDeviceName" nearby.');
+      return;
+    }
+    try {
+      await _controller.connectToDevice(device);
     } catch (e) {
       setState(() => _error = 'Could not connect: $e');
     }
@@ -354,5 +375,58 @@ class _HomeScreenState extends State<HomeScreen> {
       case LightConnectionState.connected:
         return 'Connected';
     }
+  }
+}
+
+/// Shown when auto-detecting a device named [lightDeviceName] fails, so the
+/// strip can still be connected to (and its real advertised name found out)
+/// even if this particular unit doesn't advertise that exact name.
+class _DevicePickerSheet extends StatelessWidget {
+  final List<ScanResult> nearbyDevices;
+
+  const _DevicePickerSheet({required this.nearbyDevices});
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              'Could not find a device named "$lightDeviceName". '
+              'Pick the light strip from nearby Bluetooth devices:',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            if (nearbyDevices.isEmpty)
+              const Padding(
+                padding: EdgeInsets.symmetric(vertical: 16),
+                child: Text('No Bluetooth devices found nearby.'),
+              )
+            else
+              Flexible(
+                child: ListView(
+                  shrinkWrap: true,
+                  children: [
+                    for (final result in nearbyDevices)
+                      ListTile(
+                        title: Text(
+                          result.advertisementData.advName.isNotEmpty
+                              ? result.advertisementData.advName
+                              : '(unnamed device)',
+                        ),
+                        subtitle: Text(result.device.remoteId.str),
+                        onTap: () => Navigator.pop(context, result.device),
+                      ),
+                  ],
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
   }
 }
